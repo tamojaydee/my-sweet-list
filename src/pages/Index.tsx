@@ -2,8 +2,28 @@ import { useState, useMemo } from "react";
 import { TodoItem } from "@/components/TodoItem";
 import { TodoInput } from "@/components/TodoInput";
 import { FilterTabs, FilterType } from "@/components/FilterTabs";
-import { useTodos } from "@/hooks/useTodos";
-import { CheckCircle2 } from "lucide-react";
+import { useTodos, Todo } from "@/hooks/useTodos";
+import { CheckCircle2, Calendar } from "lucide-react";
+import { format, isToday, isYesterday, startOfDay } from "date-fns";
+
+const formatDateHeader = (timestamp: number): string => {
+  const date = new Date(timestamp);
+  if (isToday(date)) return "Today";
+  if (isYesterday(date)) return "Yesterday";
+  return format(date, "EEEE, MMMM d");
+};
+
+const groupTodosByDay = (todos: Todo[]): Map<string, Todo[]> => {
+  const groups = new Map<string, Todo[]>();
+  
+  todos.forEach((todo) => {
+    const dayKey = startOfDay(new Date(todo.createdAt)).getTime().toString();
+    const existing = groups.get(dayKey) || [];
+    groups.set(dayKey, [...existing, todo]);
+  });
+  
+  return groups;
+};
 
 const Index = () => {
   const { todos, addTodo, toggleTodo, deleteTodo, clearCompleted } = useTodos();
@@ -19,6 +39,14 @@ const Index = () => {
         return todos;
     }
   }, [todos, filter]);
+
+  const groupedTodos = useMemo(() => {
+    return groupTodosByDay(filteredTodos);
+  }, [filteredTodos]);
+
+  const sortedDayKeys = useMemo(() => {
+    return Array.from(groupedTodos.keys()).sort((a, b) => Number(b) - Number(a));
+  }, [groupedTodos]);
 
   const counts = useMemo(
     () => ({
@@ -38,7 +66,7 @@ const Index = () => {
             <CheckCircle2 className="w-8 h-8 text-primary" />
           </div>
           <h1 className="font-display text-4xl md:text-5xl font-semibold text-foreground mb-3">
-            Today's Tasks
+            My Tasks
           </h1>
           <p className="text-muted-foreground text-lg">
             {counts.active === 0 && counts.all > 0
@@ -71,18 +99,36 @@ const Index = () => {
             </div>
           )}
 
-          {/* Todo List */}
-          <div className="space-y-3">
-            {filteredTodos.map((todo) => (
-              <TodoItem
-                key={todo.id}
-                id={todo.id}
-                text={todo.text}
-                completed={todo.completed}
-                onToggle={toggleTodo}
-                onDelete={deleteTodo}
-              />
-            ))}
+          {/* Todo List Grouped by Day */}
+          <div className="space-y-8">
+            {sortedDayKeys.map((dayKey) => {
+              const dayTodos = groupedTodos.get(dayKey) || [];
+              return (
+                <div key={dayKey} className="space-y-3">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Calendar className="w-4 h-4" />
+                    <h2 className="text-sm font-medium uppercase tracking-wide">
+                      {formatDateHeader(Number(dayKey))}
+                    </h2>
+                    <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
+                      {dayTodos.length}
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {dayTodos.map((todo) => (
+                      <TodoItem
+                        key={todo.id}
+                        id={todo.id}
+                        text={todo.text}
+                        completed={todo.completed}
+                        onToggle={toggleTodo}
+                        onDelete={deleteTodo}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* Empty State */}
